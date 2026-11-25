@@ -21,7 +21,22 @@
         </div>
     </header>
 
-    <main class="app-layout">
+    <!-- TOP-LEVEL 2-TAB NAVIGATION -->
+    <nav class="mode-nav" aria-label="Hauptbereiche">
+        <div class="mode-nav-inner">
+            <button type="button" class="mode-tab-btn active" data-mode="create">
+                <span>🛰️</span>
+                <span>Applikationskarten erstellen</span>
+            </button>
+            <button type="button" class="mode-tab-btn" data-mode="asapplied">
+                <span>📊</span>
+                <span>Soll / Ist &amp; As-Applied auswerten</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- VIEW 1: CREATE PRESCRIPTION MAPS -->
+    <main class="app-layout" id="viewCreate">
         <!-- LEFT SIDEBAR: 4 CLEAR STEPS -->
         <aside class="sidebar">
 
@@ -360,6 +375,280 @@
         </section>
     </main>
 
+    <!-- VIEW 2: AS-APPLIED & SOLL / IST ANALYSIS -->
+    <main class="app-layout hidden" id="viewAsApplied">
+        <aside class="sidebar">
+            <!-- STEP 1: LOAD RAUCH TASKDATA -->
+            <section class="step-card" id="aaCardStep1">
+                <div class="step-header">
+                    <span class="step-num">1</span>
+                    <h2 class="step-title">TASKDATA vom Terminal laden</h2>
+                </div>
+
+                <button type="button" id="aaBtnFolder" class="btn btn-primary" style="margin-bottom: 10px;">
+                    <span>📁</span>
+                    <span>TASKDATA-Ordner wählen (USB-Stick)</span>
+                </button>
+                <input type="file" id="aaFolderInput" webkitdirectory directory multiple class="hidden">
+
+                <div class="dropzone" id="aaDropzone" tabindex="0" role="button" aria-label="TASKDATA.zip oder Dateien auswählen">
+                    <div class="dropzone-icon">📦</div>
+                    <div class="dropzone-main">oder TASKDATA.zip hier ablegen</div>
+                    <div class="dropzone-hint">enthält TASKDATA.XML, TLG*.XML/BIN &amp; GRD*.BIN</div>
+                    <input type="file" id="aaZipInput" accept=".zip,.xml,.bin" multiple class="hidden">
+                </div>
+
+                <div id="aaProgressWrap" class="progress-wrap hidden">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="aaProgressFill"></div>
+                    </div>
+                    <div class="progress-text" id="aaProgressText">Bereit…</div>
+                </div>
+
+                <div id="aaUploadError" class="alert alert-err hidden"></div>
+
+                <div id="aaFileSummary" class="file-summary hidden">
+                    <div class="file-summary-top">
+                        <span id="aaFarmNameLabel">–</span>
+                        <span id="aaFieldCountLabel">0 Schläge</span>
+                    </div>
+                    <div class="file-summary-sub" id="aaFileMetaLabel">–</div>
+                </div>
+
+                <div id="aaFilterWrap" class="hidden" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);">
+                    <div class="form-group">
+                        <label class="form-label" for="aaCropFilter">Kultur filtern</label>
+                        <select id="aaCropFilter" class="form-control">
+                            <option value="all">Alle Kulturen</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="aaSearchInput">Schlag suchen</label>
+                        <input type="text" id="aaSearchInput" class="form-control" placeholder="z. B. Steinsfürtle, Bernhardtsmühle…">
+                    </div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="aaOnlyGrd">
+                        <span>Nur Schläge mit Soll-Karte (GRD) anzeigen</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- STEP 2: DISPLAY OPTIONS -->
+            <section class="step-card is-disabled" id="aaCardStep2">
+                <div class="step-header">
+                    <span class="step-num">2</span>
+                    <h2 class="step-title">Darstellungsoptionen</h2>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:9px;">
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="aaUseOffset" checked>
+                        <span><strong>Wurfweiten-Korrektur</strong> (DDI 0086 + Schlepper-Offset)</span>
+                    </label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="aaSharedScale" checked>
+                        <span>Gleiche Farbskala für Soll &amp; Ist (1:1 Vergleich)</span>
+                    </label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="aaShowTracks">
+                        <span>Fahrspuren (GPS-Linien) auf Ist-Karte einblenden</span>
+                    </label>
+                </div>
+
+                <div class="form-hint" style="margin-top: 8px;">
+                    Die Wurfweiten-Korrektur versetzt die Schlepper-GPS-Position um ca. 15 m nach hinten auf den realen Streupunkt des RAUCH-Streuers.
+                </div>
+            </section>
+
+            <!-- STEP 3: EXPORTS -->
+            <section class="step-card is-disabled" id="aaCardStep3">
+                <div class="step-header">
+                    <span class="step-num">3</span>
+                    <h2 class="step-title">Berichte herunterladen</h2>
+                </div>
+
+                <div class="btn-stack">
+                    <button type="button" id="aaBtnSinglePdf" class="btn btn-success" disabled>
+                        <span>📄</span>
+                        <span>Soll-Ist-PDF (aktueller Schlag)</span>
+                    </button>
+                    <button type="button" id="aaBtnAllPdf" class="btn btn-outline" disabled>
+                        <span>📚</span>
+                        <span>Gesamtbericht (alle gefilterten, PDF)</span>
+                    </button>
+                    <button type="button" id="aaBtnCsv" class="btn btn-outline" disabled>
+                        <span>📊</span>
+                        <span>Auswertungstabelle (Excel CSV)</span>
+                    </button>
+                </div>
+
+                <div id="aaExportStatus" class="alert alert-info hidden"></div>
+            </section>
+        </aside>
+
+        <!-- RIGHT MAIN PANEL: AS-APPLIED KPIs & MAPS -->
+        <section class="main-panel">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Ausgewertete Schläge</div>
+                    <div class="kpi-value" id="aaKpiFields">–</div>
+                    <div class="kpi-sub" id="aaKpiFieldsSub">Noch keine TASKDATA geladen</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Bearbeitete Fläche</div>
+                    <div class="kpi-value" id="aaKpiArea">–</div>
+                    <div class="kpi-sub" id="aaKpiAreaSub">Hektar (ha)</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Ausgebrachte Menge</div>
+                    <div class="kpi-value" id="aaKpiTotal">–</div>
+                    <div class="kpi-sub" id="aaKpiTotalSub">–</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Ø Ist-Streumenge</div>
+                    <div class="kpi-value" id="aaKpiAvg">–</div>
+                    <div class="kpi-sub" id="aaKpiAvgSub">Soll vs. Ist</div>
+                </div>
+            </div>
+
+            <div class="workspace-card">
+                <div class="tab-bar">
+                    <div class="tab-buttons" role="tablist">
+                        <button type="button" class="tab-btn aa-tab-btn active" data-aatab="compare">Soll / Ist-Vergleich</button>
+                        <button type="button" class="tab-btn aa-tab-btn" data-aatab="overview">Übersichtskarte (Kulturen)</button>
+                        <button type="button" class="tab-btn aa-tab-btn" data-aatab="table">Gesamttabelle (Soll / Ist)</button>
+                    </div>
+                </div>
+
+                <!-- EMPTY STATE -->
+                <div id="aaEmptyState" class="empty-state">
+                    <div class="empty-icon">📊</div>
+                    <h2>RAUCH / ISOBUS As-Applied &amp; Soll / Ist auswerten</h2>
+                    <p>Lies den <code>TASKDATA</code>-Ordner direkt von deinem USB-Stick (oder als <code>.zip</code>) ein, um deine tatsächlich gestreuten Mengen mit der Soll-Applikationskarte zu vergleichen.</p>
+                    <div class="empty-steps">
+                        <ol>
+                            <li><strong>TASKDATA laden:</strong> Links auf <em>„TASKDATA-Ordner wählen“</em> klicken und z. B. <code>D:\TASKDATA</code> direkt auf dem USB-Stick auswählen (oder eine <code>TASKDATA.zip</code> ablegen).</li>
+                            <li><strong>Soll &amp; Ist vergleichen:</strong> Links siehst du die Soll-Applikationskarte (<code>GRD*.BIN</code>), rechts die reale Ist-Ausbringung (<code>TLG*.BIN</code>) inkl. automatischer <strong>Wurfweiten-Korrektur</strong>.</li>
+                            <li><strong>Dokumentieren:</strong> Einzelschlag-PDF, Gesamtbericht oder Excel-Tabelle direkt herunterladen.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- SUB-TAB 1: SOLL / IST COMPARISON -->
+                <div id="aaTabCompare" class="tab-content hidden">
+                    <div id="aaNoFilterMatch" class="alert alert-warn hidden">
+                        Kein Schlag entspricht dem aktuellen Filter. Bitte Suche oder Kulturfilter anpassen.
+                    </div>
+                    <div id="aaCompareBody">
+                        <div class="field-nav">
+                            <div class="field-nav-controls">
+                                <button type="button" id="aaBtnPrev" class="btn btn-outline btn-sm" title="Vorheriger Schlag">&larr;</button>
+                                <select id="aaFieldSelector" class="form-control field-select" aria-label="Ausgewerteten Schlag wählen"></select>
+                                <button type="button" id="aaBtnNext" class="btn btn-outline btn-sm" title="Nächster Schlag">&rarr;</button>
+                            </div>
+                            <div class="field-meta-badges" id="aaFieldMetaBadges"></div>
+                        </div>
+
+                        <div class="maps-grid">
+                            <div class="map-box">
+                                <h3 class="map-box-title">
+                                    <span id="aaSollTitle">Soll-Applikationskarte</span>
+                                    <span id="aaSollSub" style="font-weight:500;font-size:0.78rem;color:var(--text-muted);"></span>
+                                </h3>
+                                <div class="map-canvas-wrap" id="aaSollCanvasWrap">
+                                    <canvas id="aaSollCanvas"></canvas>
+                                    <div id="aaSollTooltip" class="map-tooltip hidden"></div>
+                                </div>
+                                <div class="colorbar-wrap">
+                                    <div class="fert-bar"></div>
+                                    <div class="colorbar-labels">
+                                        <span id="aaSollMin">–</span>
+                                        <span id="aaSollMid">–</span>
+                                        <span id="aaSollMax">–</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="map-box">
+                                <h3 class="map-box-title">
+                                    <span id="aaIstTitle">Ist-Ausbringung (As-Applied)</span>
+                                    <span id="aaIstSub" style="font-weight:500;font-size:0.78rem;color:var(--text-muted);"></span>
+                                </h3>
+                                <div class="map-canvas-wrap" id="aaIstCanvasWrap">
+                                    <canvas id="aaIstCanvas"></canvas>
+                                    <div id="aaIstTooltip" class="map-tooltip hidden"></div>
+                                </div>
+                                <div class="colorbar-wrap">
+                                    <div class="fert-bar"></div>
+                                    <div class="colorbar-labels">
+                                        <span id="aaIstMin">–</span>
+                                        <span id="aaIstMid">–</span>
+                                        <span id="aaIstMax">–</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="cmp-bottom-grid">
+                            <div class="zone-dist-card" style="margin-top:0;">
+                                <h4 class="zone-dist-title">Soll / Ist-Kennzahlen im Vergleich</h4>
+                                <table class="cmp-mini-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Kennzahl</th>
+                                            <th class="num">Soll</th>
+                                            <th class="num">Ist (RAUCH)</th>
+                                            <th class="num">Abw. / Info</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="aaCmpTableBody"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="zone-dist-card" style="margin-top:0;">
+                                <h4 class="zone-dist-title" id="aaSollZonesTitle">Soll-Zonenverteilung</h4>
+                                <div class="zone-bars" id="aaSollZones"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-TAB 2: CROP OVERVIEW MAP -->
+                <div id="aaTabOverview" class="tab-content hidden">
+                    <div class="overview-wrap">
+                        <canvas id="aaOverviewCanvas"></canvas>
+                    </div>
+                    <div class="overview-hint">Tipp: Klicke auf einen Schlag, um direkt seinen Soll / Ist-Vergleich zu öffnen.</div>
+                </div>
+
+                <!-- SUB-TAB 3: SUMMARY TABLE -->
+                <div id="aaTabTable" class="tab-content hidden">
+                    <div class="table-scroll">
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Nr</th>
+                                    <th>Schlagname</th>
+                                    <th>Kultur</th>
+                                    <th>Datum</th>
+                                    <th>Produkt</th>
+                                    <th class="num">Fläche (ha)</th>
+                                    <th class="num">Ø Soll</th>
+                                    <th class="num">Ø Ist</th>
+                                    <th class="num">Abw.</th>
+                                    <th class="num">Ist (kg)</th>
+                                    <th class="num">Breite</th>
+                                </tr>
+                            </thead>
+                            <tbody id="aaSummaryBody"></tbody>
+                            <tfoot id="aaSummaryFoot"></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
     <!-- Self-contained vendored libraries (zero external CDN dependency) -->
     <script src="lib/jszip.min.js"></script>
     <script src="lib/jspdf.umd.min.js"></script>
@@ -371,5 +660,8 @@
     <script src="js/prescription.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/asapplied.js"></script>
+    <script src="js/asapplied-renderer.js"></script>
+    <script src="js/asapplied-ui.js"></script>
 </body>
 </html>
