@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applikationskarten-Generator | Sentinel-2 → ISOBUS TASKDATA</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-brand">
+            <div class="brand-icon" aria-hidden="true">🌾</div>
+            <div>
+                <h1 class="header-title">Applikationskarten-Generator</h1>
+                <p class="header-sub">Copernicus Sentinel-2 Biomassezonen &rarr; RAUCH / CC-Isobus TASKDATA</p>
+            </div>
+        </div>
+        <div class="privacy-badge" title="Alle Berechnungen, ZIP- und PDF-Dateien entstehen direkt auf deinem PC im Browser.">
+            <span>🔒</span>
+            <span>100 % lokal im Browser &bull; Keine Felddaten auf fremden Servern</span>
+        </div>
+    </header>
+
+    <main class="app-layout">
+        <!-- LEFT SIDEBAR: 4 CLEAR STEPS -->
+        <aside class="sidebar">
+
+            <!-- STEP 1: UPLOAD -->
+            <section class="step-card" id="cardStep1">
+                <div class="step-header">
+                    <span class="step-num">1</span>
+                    <h2 class="step-title">Schlaggrenzen laden</h2>
+                </div>
+
+                <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="TASKDATA.XML oder ZIP-Datei auswählen">
+                    <div class="dropzone-icon">📂</div>
+                    <div class="dropzone-main">TASKDATA.XML oder .zip hier ablegen</div>
+                    <div class="dropzone-hint">oder klicken zum Auswählen (z. B. export.zip)</div>
+                    <input type="file" id="fileInput" accept=".zip,.xml" class="hidden">
+                </div>
+
+                <div id="uploadError" class="alert alert-err hidden"></div>
+
+                <div id="fileSummary" class="file-summary hidden">
+                    <div class="file-summary-top">
+                        <span id="farmNameLabel">–</span>
+                        <span id="fieldCountLabel">0 Schläge</span>
+                    </div>
+                    <div class="file-summary-sub" id="fileMetaLabel">–</div>
+                </div>
+
+                <div id="fieldListWrap" class="field-list-wrap hidden">
+                    <div class="field-list-bar">
+                        <span>Schläge auswählen:</span>
+                        <div>
+                            <button type="button" class="link-btn" id="btnSelectAll">Alle</button>
+                            &middot;
+                            <button type="button" class="link-btn" id="btnSelectNone">Keine</button>
+                        </div>
+                    </div>
+                    <div class="field-checklist" id="fieldChecklist"></div>
+                </div>
+            </section>
+
+            <!-- STEP 2: SENTINEL-2 -->
+            <section class="step-card is-disabled" id="cardStep2">
+                <div class="step-header">
+                    <span class="step-num">2</span>
+                    <h2 class="step-title">Satellitendaten abrufen (Sentinel-2)</h2>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="satelliteMode">Datengrundlage</label>
+                    <select id="satelliteMode" class="form-control">
+                        <option value="multiyear" selected>Mehrjährige Biomassezonen (letzte 3 Jahre, März–Juli)</option>
+                        <option value="latest">Aktuellste wolkenfreie Aufnahmen (letzte Monate)</option>
+                        <option value="singleyear">Einzelnes Jahr (März–Juli)</option>
+                    </select>
+                </div>
+
+                <div class="form-group hidden" id="singleYearGroup">
+                    <label class="form-label" for="singleYearInput">Jahr</label>
+                    <select id="singleYearInput" class="form-control">
+                        <option value="2026" selected>2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                        <option value="2023">2023</option>
+                    </select>
+                </div>
+
+                <button type="button" id="btnFetchSentinel" class="btn btn-primary">
+                    <span>🛰️</span>
+                    <span>Satellitendaten laden &amp; Zonen berechnen</span>
+                </button>
+
+                <div id="progressWrap" class="progress-wrap hidden">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Bereit…</div>
+                </div>
+
+                <div id="sentinelError" class="alert alert-err hidden"></div>
+                <div id="sceneList" class="scene-list hidden"></div>
+            </section>
+
+            <!-- STEP 3: FERTILIZER & STRATEGY -->
+            <section class="step-card is-disabled" id="cardStep3">
+                <div class="step-header">
+                    <span class="step-num">3</span>
+                    <h2 class="step-title">Düngung &amp; Strategie</h2>
+                </div>
+
+                <div class="form-row-2 form-group">
+                    <div>
+                        <label class="form-label" for="productPreset">Dünger</label>
+                        <select id="productPreset" class="form-control">
+                            <option value="Kalkammonsalpeter (KAS)|KAS" selected>KAS (27 % N)</option>
+                            <option value="Sulfan (24/6)|Sulfan">Sulfan (24/6)</option>
+                            <option value="Harnstoff (46 %)|Harnstoff">Harnstoff (46 %)</option>
+                            <option value="ASS (26/13)|ASS">ASS (26/13)</option>
+                            <option value="NPK 15-15-15|NPK">NPK 15-15-15</option>
+                            <option value="custom">Eigener Dünger…</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="taskPrefix">Kürzel im Terminal</label>
+                        <input type="text" id="taskPrefix" class="form-control" value="KAS" maxlength="14" placeholder="z. B. KAS">
+                    </div>
+                </div>
+
+                <div class="form-group hidden" id="customProductGroup">
+                    <label class="form-label" for="customProductName">Eigener Produktname</label>
+                    <input type="text" id="customProductName" class="form-control" value="Kalkammonsalpeter (KAS)" maxlength="32">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="strategySelect">Düngestrategie</label>
+                    <select id="strategySelect" class="form-control">
+                        <option value="balance" selected>Bestände ausgleichen (schwach &rarr; mehr, stark &rarr; weniger)</option>
+                        <option value="potential">Ertragspotenzial fördern (stark &rarr; mehr, schwach &rarr; weniger)</option>
+                        <option value="uniform">Gleichmäßig (konstante Zielmenge / Testkarte)</option>
+                    </select>
+                </div>
+
+                <div class="form-row-3 form-group">
+                    <div>
+                        <label class="form-label" for="minRate">Min (kg/ha)</label>
+                        <input type="number" id="minRate" class="form-control" value="260" min="0" max="2000" step="5">
+                    </div>
+                    <div>
+                        <label class="form-label" for="targetRate">Ziel Ø (kg/ha)</label>
+                        <input type="number" id="targetRate" class="form-control" value="300" min="0" max="2000" step="5">
+                    </div>
+                    <div>
+                        <label class="form-label" for="maxRate">Max (kg/ha)</label>
+                        <input type="number" id="maxRate" class="form-control" value="340" min="0" max="2000" step="5">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="numZones">Anzahl Düngezonen</label>
+                    <select id="numZones" class="form-control">
+                        <option value="3">3 Zonen</option>
+                        <option value="5" selected>5 Zonen (empfohlen)</option>
+                        <option value="7">7 Zonen</option>
+                    </select>
+                    <div id="zonePills" class="zone-pills"></div>
+                </div>
+
+                <details class="advanced-box">
+                    <summary>Erweiterte Einstellungen (Terminal-IDs, Raster)</summary>
+                    <div class="advanced-content">
+                        <div class="form-row-2">
+                            <div>
+                                <label class="form-label" for="startId">Start-ID (kollisionsfrei)</label>
+                                <input type="number" id="startId" class="form-control" value="501" min="1" max="9000">
+                            </div>
+                            <div>
+                                <label class="form-label" for="cellSizeM">Rastergröße</label>
+                                <select id="cellSizeM" class="form-control">
+                                    <option value="10" selected>10 m (Sentinel-2)</option>
+                                    <option value="15">15 m</option>
+                                    <option value="20">20 m</option>
+                                </select>
+                            </div>
+                        </div>
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="edgeFilter" checked>
+                            <span>Randpixel-Filter aktiv (10 m Mischpixel von Wegen/Hecken ausblenden)</span>
+                        </label>
+                        <div class="form-hint">
+                            Start-ID ab <strong>501</strong> verhindert Überschneidungen mit bestehenden Aufträgen im RAUCH / CCI-Terminal.
+                        </div>
+                    </div>
+                </details>
+            </section>
+
+            <!-- STEP 4: DOWNLOAD -->
+            <section class="step-card is-disabled" id="cardStep4">
+                <div class="step-header">
+                    <span class="step-num">4</span>
+                    <h2 class="step-title">Herunterladen</h2>
+                </div>
+
+                <div class="btn-stack">
+                    <button type="button" id="btnDownloadIsoxml" class="btn btn-success">
+                        <span>💾</span>
+                        <span>TASKDATA.zip für USB-Stick</span>
+                    </button>
+                    <button type="button" id="btnDownloadPdf" class="btn btn-outline">
+                        <span>📄</span>
+                        <span>Kontrollbericht (PDF)</span>
+                    </button>
+                    <button type="button" id="btnDownloadCsv" class="btn btn-outline">
+                        <span>📊</span>
+                        <span>Übersichtstabelle (Excel CSV)</span>
+                    </button>
+                </div>
+
+                <div id="exportStatus" class="alert alert-info hidden"></div>
+
+                <div class="alert alert-warn" style="margin-top: 10px;">
+                    <strong>Praxis-Tipp für das Terminal:</strong><br>
+                    Die heruntergeladene <code>TASKDATA.zip</code> entpacken und den Ordner <strong><code>TASKDATA</code></strong> direkt ganz oben auf den USB-Stick kopieren (z. B. <code>D:\TASKDATA\</code>).
+                </div>
+            </section>
+        </aside>
+
+        <!-- RIGHT MAIN PANEL: KPIs + INTERACTIVE PREVIEWS -->
+        <section class="main-panel">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Ausgewählte Schläge</div>
+                    <div class="kpi-value" id="kpiFields">–</div>
+                    <div class="kpi-sub" id="kpiFieldsSub">Noch keine Datei geladen</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Gesamtfläche</div>
+                    <div class="kpi-value" id="kpiArea">–</div>
+                    <div class="kpi-sub">Hektar (ha)</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Ø Streumenge</div>
+                    <div class="kpi-value" id="kpiAvgRate">–</div>
+                    <div class="kpi-sub" id="kpiProductSub">kg/ha</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Gesamt-Düngerbedarf</div>
+                    <div class="kpi-value" id="kpiTotalTons">–</div>
+                    <div class="kpi-sub" id="kpiTotalKg">–</div>
+                </div>
+            </div>
+
+            <div class="workspace-card">
+                <div class="tab-bar">
+                    <div class="tab-buttons" role="tablist">
+                        <button type="button" class="tab-btn active" data-tab="detail">Einzelkarten-Vorschau</button>
+                        <button type="button" class="tab-btn" data-tab="overview">Übersichtskarte</button>
+                        <button type="button" class="tab-btn" data-tab="table">Gesamttabelle</button>
+                    </div>
+                    <div class="form-hint" id="liveUpdateBadge" style="margin: 0;"></div>
+                </div>
+
+                <!-- EMPTY / WELCOME STATE -->
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-icon">🚜</div>
+                    <h2>Fertig für deine nächste Düngergabe</h2>
+                    <p>Erstelle aus deinen Schlaggrenzen und aktuellen Copernicus Sentinel-2 Satellitenbildern in wenigen Klicks terminal-fertige Applikationskarten für deinen RAUCH / ISOBUS-Düngerstreuer.</p>
+                    <div class="empty-steps">
+                        <ol>
+                            <li><strong>Schlaggrenzen laden:</strong> Links deine <code>TASKDATA.XML</code> oder <code>.zip</code>-Datei (z. B. aus dem Maschinenring-Portal) hineinziehen.</li>
+                            <li><strong>Satellitendaten laden:</strong> Wolkenfreie 10-m-Sentinel-2-Bilder werden automatisch abgerufen.</li>
+                            <li><strong>Düngung einstellen:</strong> Dünger, Zielmenge, Min/Max und Strategie anpassen – alle Karten aktualisieren sich sofort live.</li>
+                            <li><strong>Herunterladen:</strong> Fertige <code>TASKDATA.zip</code> (mit kollisionsfreien IDs ab 501) + druckfertiges Kontroll-PDF sichern.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- TAB 1: FIELD DETAIL PREVIEW -->
+                <div id="tabDetail" class="tab-content hidden">
+                    <div class="field-nav">
+                        <div class="field-nav-controls">
+                            <button type="button" id="btnPrevField" class="btn btn-outline btn-sm" title="Vorheriger Schlag">&larr;</button>
+                            <select id="fieldSelector" class="form-control field-select" aria-label="Schlag auswählen"></select>
+                            <button type="button" id="btnNextField" class="btn btn-outline btn-sm" title="Nächster Schlag">&rarr;</button>
+                        </div>
+                        <div class="field-meta-badges" id="fieldMetaBadges"></div>
+                    </div>
+
+                    <div id="detailPlaceholder" class="alert alert-info hidden">
+                        Schlaggrenzen geladen! Klicke links in <strong>Schritt 2</strong> auf <em>„Satellitendaten laden &amp; Zonen berechnen“</em>, um die Biomasse- und Applikationskarten zu erstellen.
+                    </div>
+
+                    <div id="detailMapsWrap" class="hidden">
+                        <div class="maps-grid">
+                            <div class="map-box">
+                                <h3 class="map-box-title">
+                                    <span>Biomassezonen (Sentinel-2 NDVI)</span>
+                                    <span id="bioScenesLabel" style="font-weight:500;font-size:0.78rem;color:var(--text-muted);"></span>
+                                </h3>
+                                <div class="map-canvas-wrap" id="bioCanvasWrap">
+                                    <canvas id="bioCanvas"></canvas>
+                                    <div id="bioTooltip" class="map-tooltip hidden"></div>
+                                </div>
+                                <div class="colorbar-wrap">
+                                    <div class="biomass-bar"></div>
+                                    <div class="colorbar-labels">
+                                        <span>sehr schwach</span>
+                                        <span>schwach</span>
+                                        <span>mittel</span>
+                                        <span>stark</span>
+                                        <span>sehr stark</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="map-box">
+                                <h3 class="map-box-title">
+                                    <span id="rxMapTitle">Applikationskarte (kg/ha)</span>
+                                    <span id="rxGrdLabel" style="font-weight:500;font-size:0.78rem;color:var(--text-muted);"></span>
+                                </h3>
+                                <div class="map-canvas-wrap" id="rxCanvasWrap">
+                                    <canvas id="rxCanvas"></canvas>
+                                    <div id="rxTooltip" class="map-tooltip hidden"></div>
+                                </div>
+                                <div class="colorbar-wrap">
+                                    <div class="rx-legend" id="rxLegendBar"></div>
+                                    <div class="rx-legend-labels" id="rxLegendLabels"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="zone-dist-card">
+                            <h4 class="zone-dist-title">Flächenverteilung der Düngezonen</h4>
+                            <div class="zone-bars" id="zoneBars"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: OVERVIEW MAP -->
+                <div id="tabOverview" class="tab-content hidden">
+                    <div class="overview-wrap">
+                        <canvas id="overviewCanvas"></canvas>
+                    </div>
+                    <div class="overview-hint">Tipp: Klicke auf einen Schlag auf der Karte, um direkt in seine Detail-Applikationskarte zu springen.</div>
+                </div>
+
+                <!-- TAB 3: SUMMARY TABLE -->
+                <div id="tabTable" class="tab-content hidden">
+                    <div class="table-scroll">
+                        <table class="summary-table" id="summaryTable">
+                            <thead id="summaryHead"></thead>
+                            <tbody id="summaryBody"></tbody>
+                            <tfoot id="summaryFoot"></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Self-contained vendored libraries (zero external CDN dependency) -->
+    <script src="lib/jszip.min.js"></script>
+    <script src="lib/jspdf.umd.min.js"></script>
+    <script src="lib/geotiff.js"></script>
+
+    <!-- Application modules -->
+    <script src="js/geo.js"></script>
+    <script src="js/sentinel.js"></script>
+    <script src="js/prescription.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
